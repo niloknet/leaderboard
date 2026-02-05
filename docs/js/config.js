@@ -7,6 +7,7 @@ import { initializeApp } from "firebase/app";
 const firebaseConfig = {
   apiKey: "AIzaSyBhn9prZR56YtKoiWbTckEaU2cCRtrr2KA",
   authDomain: "leaderboard-b29d3.firebaseapp.com",
+  databaseURL: "https://leaderboard-b29d3-default-rtdb.asia-southeast1.firebasedatabase.app",
   projectId: "leaderboard-b29d3",
   storageBucket: "leaderboard-b29d3.firebasestorage.app",
   messagingSenderId: "416608262234",
