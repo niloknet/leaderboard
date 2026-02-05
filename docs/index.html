@@ -10,16 +10,25 @@
   <div class="container">
     <header>
       <h1>스코어 랭킹 대시보드</h1>
-      <p class="subtitle">실시간 게임 점수 랭킹</p>
+      <p class="subtitle">실시간 게임 점수 랭킹 · 점수(효율)와 승객수(처리량)는 별도 지표입니다</p>
     </header>
 
     <main>
-      <section class="leaderboard-section">
-        <h2>랭킹</h2>
-        <ul id="ranking-list" class="ranking-list">
-          <li>로딩 중...</li>
-        </ul>
-      </section>
+      <p class="legend">점수(효율)와 승객수(처리량)는 별도 지표입니다. 승객은 많아도 패널티가 크면 점수는 낮을 수 있습니다.</p>
+      <div class="leaderboards-row">
+        <section class="leaderboard-section">
+          <h2>점수 순 랭킹</h2>
+          <ul id="ranking-list" class="ranking-list">
+            <li>로딩 중...</li>
+          </ul>
+        </section>
+        <section class="leaderboard-section">
+          <h2>승객 순 랭킹</h2>
+          <ul id="ranking-list-passengers" class="ranking-list">
+            <li>로딩 중...</li>
+          </ul>
+        </section>
+      </div>
     </main>
   </div>
 

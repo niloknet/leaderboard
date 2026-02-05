@@ -9,6 +9,7 @@ interface LeaderboardEntry {
   userId: string;
   username: string;
   score: number;
+  passengers: number;
   timestamp: number;
 }
 
@@ -20,7 +21,7 @@ function setCors(res: functions.Response) {
 
 /**
  * 점수 제출 (HTTP) - leaderboard 트랜잭션으로 상위 20명만 유지
- * Body: { userId: string, username?: string, score: number }
+ * Body: { userId: string, username?: string, score: number, passengers: number }
  */
 export const submitScore = functions.https.onRequest(async (req, res) => {
   setCors(res);
@@ -34,14 +35,15 @@ export const submitScore = functions.https.onRequest(async (req, res) => {
     return;
   }
 
-  const { userId, username, score } = req.body as {
+  const { userId, username, score, passengers } = req.body as {
     userId?: string;
     username?: string;
     score?: number;
+    passengers?: number;
   };
 
-  if (!userId || typeof score !== "number") {
-    res.status(400).json({ error: "Invalid parameters" });
+  if (!userId || typeof score !== "number" || typeof passengers !== "number") {
+    res.status(400).json({ error: "Invalid parameters (userId, score, passengers required)" });
     return;
   }
 
@@ -49,66 +51,81 @@ export const submitScore = functions.https.onRequest(async (req, res) => {
   const leaderboardRef = db.ref("leaderboard");
 
   try {
-    await leaderboardRef.transaction((currentLeaderboard) => {
-      let list: LeaderboardEntry[];
+    await leaderboardRef.transaction((current) => {
+      type LeaderboardData = { byScore: LeaderboardEntry[]; byPassengers: LeaderboardEntry[] };
 
-      if (!currentLeaderboard) {
-        list = [];
-      } else if (Array.isArray(currentLeaderboard)) {
-        list = [...currentLeaderboard];
+      let byScore: LeaderboardEntry[];
+      let byPassengers: LeaderboardEntry[];
+
+      if (!current || !(current as LeaderboardData).byScore) {
+        byScore = [];
+        byPassengers = [];
       } else {
-        list = Object.values(currentLeaderboard) as LeaderboardEntry[];
+        const data = current as LeaderboardData;
+        byScore = [...(data.byScore || [])];
+        byPassengers = [...(data.byPassengers || [])];
       }
 
-      const existingIndex = list.findIndex((item) => item.userId === userId);
+      const entry: LeaderboardEntry = {
+        userId,
+        username: username ?? "Anonymous",
+        score,
+        passengers,
+        timestamp: Date.now(),
+      };
 
-      if (existingIndex !== -1) {
-        if (score > list[existingIndex].score) {
-          list[existingIndex] = {
-            ...list[existingIndex],
-            score,
-            username: username ?? list[existingIndex].username,
-            timestamp: Date.now(),
-          };
+      // byScore 갱신
+      const scoreIdx = byScore.findIndex((item) => item.userId === userId);
+      if (scoreIdx !== -1) {
+        if (score > byScore[scoreIdx].score) {
+          byScore[scoreIdx] = { ...byScore[scoreIdx], ...entry, username: username ?? byScore[scoreIdx].username };
         } else {
-          return undefined; // 변경 없음
+          return undefined;
         }
       } else {
-        if (list.length < MAX_ENTRIES) {
-          list.push({
-            userId,
-            username: username ?? "Anonymous",
-            score,
-            timestamp: Date.now(),
-          });
+        if (byScore.length < MAX_ENTRIES) {
+          byScore.push(entry);
         } else {
-          const minScore = Math.min(...list.map((i) => i.score));
-          if (score > minScore) {
-            // 꼴등 동점이 여러 명이면 timestamp가 가장 큰(가장 늦게 들어온) 사람 제거
-            const minScoreCandidates = list
+          const minScore = Math.min(...byScore.map((i) => i.score));
+          if (score <= minScore) return undefined;
+          const minCandidates = byScore
+            .map((item, index) => ({ item, index }))
+            .filter(({ item }) => item.score === minScore);
+          const toRemove = minCandidates.reduce((a, b) =>
+            a.item.timestamp >= b.item.timestamp ? a : b
+          );
+          byScore.splice(toRemove.index, 1);
+          byScore.push(entry);
+        }
+      }
+      byScore.sort((a, b) => b.score - a.score);
+
+      const getP = (item: LeaderboardEntry) => item.passengers;
+      const passIdx = byPassengers.findIndex((item) => item.userId === userId);
+      if (passIdx !== -1) {
+        if (passengers > getP(byPassengers[passIdx])) {
+          byPassengers[passIdx] = { ...byPassengers[passIdx], ...entry, username: username ?? byPassengers[passIdx].username };
+        }
+      } else {
+        if (byPassengers.length < MAX_ENTRIES) {
+          byPassengers.push(entry);
+        } else {
+          const minP = Math.min(...byPassengers.map(getP));
+          if (passengers > minP) {
+            const minCandidates = byPassengers
               .map((item, index) => ({ item, index }))
-              .filter(({ item }) => item.score === minScore);
-            const toRemove = minScoreCandidates.reduce((a, b) =>
+              .filter(({ item }) => getP(item) === minP);
+            const toRemove = minCandidates.reduce((a, b) =>
               a.item.timestamp >= b.item.timestamp ? a : b
             );
-            const minIndex = toRemove.index;
-            if (minIndex !== -1) {
-              list.splice(minIndex, 1);
-              list.push({
-                userId,
-                username: username ?? "Anonymous",
-                score,
-                timestamp: Date.now(),
-              });
-            }
-          } else {
-            return undefined;
+            byPassengers.splice(toRemove.index, 1);
+            byPassengers.push(entry);
           }
         }
       }
+      byPassengers.sort((a, b) => b.passengers - a.passengers);
 
-      list.sort((a, b) => b.score - a.score);
-      return list;
+      return { byScore, byPassengers };
     });
 
     res.status(200).json({ success: true, message: "Leaderboard updated" });
