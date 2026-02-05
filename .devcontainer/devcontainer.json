@@ -1,0 +1,38 @@
+{
+  "name": "Leaderboard Firebase Dev",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": ".."
+  },
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=cached",
+  "workspaceFolder": "/workspace",
+  "forwardPorts": [4000, 5000, 5001, 9000, 9099],
+  "portsAttributes": {
+    "4000": {
+      "label": "Firebase Emulator UI",
+      "onAutoForward": "notify"
+    },
+    "5000": {
+      "label": "Hosting (대시보드)",
+      "onAutoForward": "notify"
+    },
+    "5001": {
+      "label": "Cloud Functions",
+      "onAutoForward": "silent"
+    },
+    "9000": {
+      "label": "Realtime Database",
+      "onAutoForward": "silent"
+    },
+    "9099": {
+      "label": "Auth Emulator",
+      "onAutoForward": "silent"
+    }
+  },
+  "postCreateCommand": "cd functions && npm install && npm run build 2>/dev/null || true",
+  "customizations": {
+    "vscode": {
+      "extensions": []
+    }
+  }
+}
