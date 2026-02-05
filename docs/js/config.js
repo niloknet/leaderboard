@@ -1,7 +1,5 @@
-// Import the functions you need from the SDKs you need
-import { initializeApp } from "firebase/app";
-// TODO: Add SDKs for Firebase products that you want to use
-// https://firebase.google.com/docs/web/setup#available-libraries
+// Firebase SDK (CDN 사용 - 브라우저에서 bare specifier 해석 불가 대응)
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.0/firebase-app.js";
 
 // Your web app's Firebase configuration
 const firebaseConfig = {
@@ -16,3 +14,11 @@ const firebaseConfig = {
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
+window.firebaseApp = app;
+
+// 로컬/에뮬레이터 여부 (firebase.js에서 사용)
+window.CONFIG = {
+  isLocal() {
+    return window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+  }
+};
