@@ -1,4 +1,4 @@
-FROM node:18
+FROM node:22
 
 # Firebase CLI 설치
 RUN npm install -g firebase-tools

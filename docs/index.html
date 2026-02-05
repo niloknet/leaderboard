@@ -16,45 +16,14 @@
     <main>
       <section class="leaderboard-section">
         <h2>랭킹</h2>
-        <div class="table-wrap">
-          <table class="leaderboard">
-            <thead>
-              <tr>
-                <th>순위</th>
-                <th>플레이어</th>
-                <th>점수</th>
-              </tr>
-            </thead>
-            <tbody id="leaderboard-body">
-              <tr><td colspan="3">로딩 중...</td></tr>
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      <section class="submit-section">
-        <h2>점수 등록</h2>
-        <form id="submit-form" class="submit-form">
-          <div class="form-group">
-            <label for="userId">사용자 ID</label>
-            <input type="text" id="userId" name="userId" required placeholder="user_12345">
-          </div>
-          <div class="form-group">
-            <label for="username">닉네임</label>
-            <input type="text" id="username" name="username" required placeholder="PlayerOne">
-          </div>
-          <div class="form-group">
-            <label for="score">점수</label>
-            <input type="number" id="score" name="score" required min="0" placeholder="1500">
-          </div>
-          <button type="submit">점수 제출</button>
-        </form>
-        <p id="message" class="message" hidden></p>
+        <ul id="ranking-list" class="ranking-list">
+          <li>로딩 중...</li>
+        </ul>
       </section>
     </main>
   </div>
 
-  <script src="js/config.js"></script>
+  <script type="module" src="js/config.js"></script>
   <script type="module" src="js/firebase.js"></script>
   <script type="module" src="js/app.js"></script>
 </body>

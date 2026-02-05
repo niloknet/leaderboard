@@ -48,11 +48,31 @@ section h2 {
   color: #cbd5e1;
 }
 
-.table-wrap {
+.table-wrap,
+.ranking-list {
   overflow-x: auto;
   border-radius: 8px;
   background: #1e293b;
   border: 1px solid #334155;
+}
+
+.ranking-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.ranking-list li {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid #334155;
+}
+
+.ranking-list li:last-child {
+  border-bottom: none;
+}
+
+.ranking-list li:hover {
+  background: #33415533;
 }
 
 .leaderboard {

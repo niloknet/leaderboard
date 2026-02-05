@@ -3,87 +3,117 @@ import * as admin from "firebase-admin";
 
 admin.initializeApp();
 
-const db = admin.database();
+const MAX_ENTRIES = 20;
 
-const CORS_HEADERS = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type",
-};
+interface LeaderboardEntry {
+  userId: string;
+  username: string;
+  score: number;
+  timestamp: number;
+}
 
-const MAX_SCORE = 999999999;
-const MIN_SCORE = 0;
-
-interface SubmitScoreRequest {
-  userId?: string;
-  username?: string;
-  score?: number;
-  timestamp?: number;
+function setCors(res: functions.Response) {
+  res.set("Access-Control-Allow-Origin", "*");
+  res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.set("Access-Control-Allow-Headers", "Content-Type");
 }
 
 /**
- * 점수 등록 API
- * - 유효성 검사, 어뷰징 방지, Realtime DB 업데이트
+ * 점수 제출 (HTTP) - leaderboard 트랜잭션으로 상위 20명만 유지
+ * Body: { userId: string, username?: string, score: number }
  */
 export const submitScore = functions.https.onRequest(async (req, res) => {
+  setCors(res);
   if (req.method === "OPTIONS") {
-    res.set(CORS_HEADERS).status(204).send("");
+    res.status(204).send("");
     return;
   }
 
   if (req.method !== "POST") {
-    res.set(CORS_HEADERS).status(405).json({ error: "Method not allowed" });
+    res.status(405).json({ error: "Method not allowed" });
     return;
   }
 
-  const body = req.body as SubmitScoreRequest;
-  const { userId, username, score, timestamp } = body;
-
-  // 1. 필수 파라미터 검증
-  if (!userId || typeof userId !== "string" || userId.trim() === "") {
-    res.set(CORS_HEADERS).status(400).json({ error: "userId is required" });
-    return;
-  }
-  if (!username || typeof username !== "string" || username.trim() === "") {
-    res.set(CORS_HEADERS).status(400).json({ error: "username is required" });
-    return;
-  }
-  if (score === undefined || score === null || typeof score !== "number") {
-    res.set(CORS_HEADERS).status(400).json({ error: "score is required and must be a number" });
-    return;
-  }
-  if (!timestamp || typeof timestamp !== "number") {
-    res.set(CORS_HEADERS).status(400).json({ error: "timestamp is required" });
-    return;
-  }
-
-  // 2. 어뷰징 방지: score 범위 검사
-  if (score < MIN_SCORE || score > MAX_SCORE || !Number.isFinite(score)) {
-    res.set(CORS_HEADERS).status(403).json({ error: "Invalid score range" });
-    return;
-  }
-
-  // 3. DB 업데이트
-  const scoresRef = db.ref("scores");
-  const userScoreRef = scoresRef.child(userId);
-
-  const scoreData = {
-    username: username.trim().slice(0, 50),
-    score: Math.floor(score),
-    updatedAt: timestamp,
+  const { userId, username, score } = req.body as {
+    userId?: string;
+    username?: string;
+    score?: number;
   };
 
-  await userScoreRef.set(scoreData);
+  if (!userId || typeof score !== "number") {
+    res.status(400).json({ error: "Invalid parameters" });
+    return;
+  }
 
-  // 4. Rank 계산: 전체 scores 조회 후 정렬
-  const snapshot = await scoresRef.once("value");
-  const scoresData = snapshot.val() || {};
-  const entries = Object.entries(scoresData).map(([id, data]: [string, unknown]) => {
-    const d = data as { score?: number };
-    return { userId: id, score: d.score ?? 0 };
-  });
-  entries.sort((a, b) => b.score - a.score);
-  const rank = entries.findIndex((e) => e.userId === userId) + 1;
+  const db = admin.database();
+  const leaderboardRef = db.ref("leaderboard");
 
-  res.set(CORS_HEADERS).status(200).json({ success: true, rank });
+  try {
+    await leaderboardRef.transaction((currentLeaderboard) => {
+      let list: LeaderboardEntry[];
+
+      if (!currentLeaderboard) {
+        list = [];
+      } else if (Array.isArray(currentLeaderboard)) {
+        list = [...currentLeaderboard];
+      } else {
+        list = Object.values(currentLeaderboard) as LeaderboardEntry[];
+      }
+
+      const existingIndex = list.findIndex((item) => item.userId === userId);
+
+      if (existingIndex !== -1) {
+        if (score > list[existingIndex].score) {
+          list[existingIndex] = {
+            ...list[existingIndex],
+            score,
+            username: username ?? list[existingIndex].username,
+            timestamp: Date.now(),
+          };
+        } else {
+          return undefined; // 변경 없음
+        }
+      } else {
+        if (list.length < MAX_ENTRIES) {
+          list.push({
+            userId,
+            username: username ?? "Anonymous",
+            score,
+            timestamp: Date.now(),
+          });
+        } else {
+          const minScore = Math.min(...list.map((i) => i.score));
+          if (score > minScore) {
+            // 꼴등 동점이 여러 명이면 timestamp가 가장 큰(가장 늦게 들어온) 사람 제거
+            const minScoreCandidates = list
+              .map((item, index) => ({ item, index }))
+              .filter(({ item }) => item.score === minScore);
+            const toRemove = minScoreCandidates.reduce((a, b) =>
+              a.item.timestamp >= b.item.timestamp ? a : b
+            );
+            const minIndex = toRemove.index;
+            if (minIndex !== -1) {
+              list.splice(minIndex, 1);
+              list.push({
+                userId,
+                username: username ?? "Anonymous",
+                score,
+                timestamp: Date.now(),
+              });
+            }
+          } else {
+            return undefined;
+          }
+        }
+      }
+
+      list.sort((a, b) => b.score - a.score);
+      return list;
+    });
+
+    res.status(200).json({ success: true, message: "Leaderboard updated" });
+  } catch (error) {
+    console.error("Error updating leaderboard:", error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
 });

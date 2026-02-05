@@ -1,8 +1,5 @@
 {
   "rules": {
-    "scores": {
-      ".read": true,
-      ".write": false
-    }
+    "leaderboard": { ".read": true, ".write": false }
   }
 }
